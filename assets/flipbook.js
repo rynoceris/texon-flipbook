@@ -7,7 +7,7 @@
     return cfg.pagesUrl + '/page-' + padNum(pageNum) + '.jpg';
   }
 
-  function buildPage(pageNum, cfg){
+  function buildPage(pageNum, cfg, trackFn){
     var wrap = document.createElement('div');
     wrap.className = 'texon-fb-page';
     var img = document.createElement('img');
@@ -28,7 +28,10 @@
       a.style.top    = (s.y * 100) + '%';
       a.style.width  = (s.w * 100) + '%';
       a.style.height = (s.h * 100) + '%';
-      a.addEventListener('click', function(e){ e.stopPropagation(); });
+      a.addEventListener('click', function(e){
+        e.stopPropagation();
+        try { if (trackFn) trackFn('hotspot_click', pageNum, { url: s.url, label: s.label || '' }); } catch(_){}
+      });
       wrap.appendChild(a);
     });
     return wrap;
@@ -41,10 +44,69 @@
     return e;
   }
 
+  // ===== Anonymous analytics tracker =====
+  // Respects DNT / GPC. Sends events to our AJAX endpoint and (optionally)
+  // pushes the same payload to window.dataLayer for GTM/GA4.
+  function makeTracker(cfg){
+    var T = cfg.track || {};
+    var privacyBlocked = (navigator.doNotTrack === '1' || navigator.msDoNotTrack === '1' ||
+      window.doNotTrack === '1' || navigator.globalPrivacyControl === true);
+    var sid = '';
+    try {
+      sid = localStorage.getItem('tfb_sid') || '';
+      if (!sid){
+        sid = 'tfb_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        localStorage.setItem('tfb_sid', sid);
+      }
+    } catch(e){ sid = 'tfb_mem_' + Date.now().toString(36); }
+
+    function sendBeacon(body){
+      try {
+        if (navigator.sendBeacon){
+          var fd = new FormData();
+          Object.keys(body).forEach(function(k){ fd.append(k, body[k]); });
+          navigator.sendBeacon(T.ajaxUrl, fd);
+          return true;
+        }
+      } catch(e){}
+      return false;
+    }
+    function postForm(body){
+      if (sendBeacon(body)) return;
+      var form = new URLSearchParams();
+      Object.keys(body).forEach(function(k){ form.append(k, body[k]); });
+      try {
+        fetch(T.ajaxUrl, { method:'POST', body: form, credentials:'same-origin', keepalive: true });
+      } catch(e){}
+    }
+    function track(eventType, page, data){
+      if (!T.enabled || privacyBlocked) return;
+      var payload = { event: 'texon_flipbook_' + eventType, book_id: cfg.bookId, page: page || 0 };
+      if (data) Object.keys(data).forEach(function(k){ payload[k] = data[k]; });
+      // dataLayer push
+      if (T.dataLayer && window.dataLayer && window.dataLayer.push){
+        try { window.dataLayer.push(payload); } catch(e){}
+      }
+      // Server log
+      postForm({
+        action: 'texon_flipbook_track',
+        book_id: cfg.bookId,
+        event_type: eventType,
+        page: page || 0,
+        session_id: sid,
+        data: data ? JSON.stringify(data) : ''
+      });
+    }
+    return { track: track, sid: sid, enabled: T.enabled && !privacyBlocked };
+  }
+
   function init(viewer){
     var cfg = JSON.parse(viewer.getAttribute('data-texon-fb-config'));
     var inline = viewer.closest('.texon-fb-inline') || viewer;
     while (viewer.firstChild) viewer.removeChild(viewer.firstChild);
+
+    var tracker = makeTracker(cfg);
+    var track = tracker.track;
 
     var stage = el('div', 'texon-fb-stage');
     var bookEl = el('div', 'texon-fb-book');
@@ -166,7 +228,7 @@
     });
 
     var pages = [];
-    for (var i = 1; i <= cfg.pageCount; i++) pages.push(buildPage(i, cfg));
+    for (var i = 1; i <= cfg.pageCount; i++) pages.push(buildPage(i, cfg, track));
     pageFlip.loadFromHTML(pages);
 
     var suppressHash = false;
@@ -204,6 +266,7 @@
       activeThumb(cur);
       writeHash(cur);
       if (typeof resetZoom === 'function' && zState && zState.scale > 1) resetZoom();
+      schedulePageView(cur);
     }
     pageFlip.on('flip', update);
 
@@ -213,7 +276,21 @@
         try { pageFlip.flip(h - 1, 'top'); } catch(e){ try { pageFlip.turnToPage(h - 1); } catch(_){} }
       }
       update();
+      track('session_start', pageFlip.getCurrentPageIndex() + 1);
+      schedulePageView(pageFlip.getCurrentPageIndex() + 1);
     }, 80);
+
+    // Debounced page-view tracking: only fire after the user dwells for >1.5s
+    var pageViewTimer = null, lastTrackedPage = 0;
+    function schedulePageView(p){
+      clearTimeout(pageViewTimer);
+      pageViewTimer = setTimeout(function(){
+        if (p !== lastTrackedPage){
+          track('page_view', p);
+          lastTrackedPage = p;
+        }
+      }, 1500);
+    }
 
     btnSidePrev.addEventListener('click', function(){ pageFlip.flipPrev(); });
     btnSideNext.addEventListener('click', function(){ pageFlip.flipNext(); });
@@ -302,7 +379,10 @@
         enterCssFs();
       }
     }
-    btnFs.addEventListener('click', toggleFullscreen);
+    btnFs.addEventListener('click', function(){
+      track('fullscreen', pageFlip.getCurrentPageIndex() + 1);
+      toggleFullscreen();
+    });
 
     // === Zoom / pan ===
     // Apply CSS transform to bookEl. StPageFlip's internal transforms on page
@@ -340,7 +420,17 @@
       if (document.activeElement !== zoomSlider){
         zoomSlider.value = String(zState.scale);
       }
+      scheduleZoomTrack();
       setTimeout(function(){ bookEl.style.transition = ''; }, 140);
+    }
+    var _zoomTrackTimer = null;
+    function scheduleZoomTrack(){
+      clearTimeout(_zoomTrackTimer);
+      _zoomTrackTimer = setTimeout(function(){
+        if (zState.scale > 1.001){
+          track('zoom', pageFlip.getCurrentPageIndex() + 1, { scale: zState.scale.toFixed(2) });
+        }
+      }, 900);
     }
     function zoomBy(factor, cx, cy){
       var prev = zState.scale;
@@ -478,6 +568,7 @@
     // === Download ===
     btnDl.addEventListener('click', function(){
       if (!cfg.pdfUrl) return;
+      track('download', pageFlip.getCurrentPageIndex() + 1);
       var a = document.createElement('a');
       a.href = cfg.pdfUrl;
       a.download = '';
@@ -490,6 +581,7 @@
     // === Print (opens PDF in new tab; browser's PDF viewer prints natively) ===
     btnPrint.addEventListener('click', function(){
       if (!cfg.pdfUrl) return;
+      track('print', pageFlip.getCurrentPageIndex() + 1);
       var w = window.open(cfg.pdfUrl, '_blank', 'noopener');
       if (w){ try { w.focus(); } catch(e){} }
     });
@@ -503,6 +595,7 @@
     btnShare.addEventListener('click', function(){
       var url = currentShareUrl();
       var title = cfg.title || document.title;
+      track('share', pageFlip.getCurrentPageIndex() + 1, { url: url });
       if (navigator.share){
         navigator.share({ title: title, url: url }).catch(function(){});
         return;
@@ -616,6 +709,31 @@
         resultsEl.appendChild(err);
       });
     }
+    btnSearch.addEventListener('click', openSearch);
+
+    // Track searches: hook the search panel's results container for new rows
+    // and log the current query once results have rendered.
+    var _trackedQuery = '';
+    var _trackSearchTimer = null;
+    var _origOpenSearch = openSearch;
+    openSearch = function(){
+      _origOpenSearch();
+      var input = inline.querySelector('.texon-fb-search input');
+      var results = inline.querySelector('.texon-fb-search-results');
+      if (!input || input.dataset.tfbTrackWired) return;
+      input.dataset.tfbTrackWired = '1';
+      input.addEventListener('input', function(){
+        clearTimeout(_trackSearchTimer);
+        var q = input.value.trim();
+        if (!q || q === _trackedQuery) return;
+        _trackSearchTimer = setTimeout(function(){
+          var hits = results ? results.querySelectorAll('.texon-fb-search-result').length : 0;
+          track('search', pageFlip.getCurrentPageIndex() + 1, { q: q.slice(0, 100), hits: hits });
+          _trackedQuery = q;
+        }, 900);
+      });
+    };
+    btnSearch.removeEventListener('click', _origOpenSearch);
     btnSearch.addEventListener('click', openSearch);
 
     // Sync icon + re-layout when the native Fullscreen API state changes

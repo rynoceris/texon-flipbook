@@ -30,6 +30,7 @@ class Texon_Flipbook_Shortcode {
         $pdf_url   = self::path_to_url( $data['pdf_path'] );
         $text_url  = $pages_url . '/text.json';
 
+        $settings = Texon_Flipbook_Settings::get();
         $config = [
             'pagesUrl'   => $pages_url,
             'pageCount'  => $data['page_count'],
@@ -39,6 +40,12 @@ class Texon_Flipbook_Shortcode {
             'title'      => $data['title'],
             'pdfUrl'     => $pdf_url,
             'textUrl'    => $text_url,
+            'bookId'     => (int) $id,
+            'track'      => [
+                'enabled'  => ! empty( $settings['tracking_enabled'] ),
+                'ajaxUrl'  => admin_url( 'admin-ajax.php' ),
+                'dataLayer' => ! empty( $settings['push_to_datalayer'] ),
+            ],
         ];
         $config_json = esc_attr( wp_json_encode( $config ) );
         $uid = 'texon-fb-' . $id . '-' . wp_rand( 1000, 9999 );

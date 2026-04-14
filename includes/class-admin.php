@@ -9,6 +9,10 @@ class Texon_Flipbook_Admin {
             'texon-flipbook', [ __CLASS__, 'screen_router' ],
             'dashicons-book-alt', 26
         );
+        add_submenu_page(
+            'texon-flipbook', 'Flipbook Settings', 'Settings', 'manage_options',
+            'texon-flipbook-settings', [ 'Texon_Flipbook_Settings', 'screen' ]
+        );
     }
 
     public static function enqueue( $hook ) {
@@ -25,11 +29,12 @@ class Texon_Flipbook_Admin {
 
     public static function screen_router() {
         $action = $_GET['action'] ?? 'list';
-        if ( $action === 'edit' )         self::screen_edit();
-        elseif ( $action === 'hotspots' ) self::screen_hotspots();
-        elseif ( $action === 'render' )   self::screen_render();
-        elseif ( $action === 'new' )      self::screen_edit();
-        else                              self::screen_list();
+        if ( $action === 'edit' )          self::screen_edit();
+        elseif ( $action === 'hotspots' )  self::screen_hotspots();
+        elseif ( $action === 'render' )    self::screen_render();
+        elseif ( $action === 'analytics' ) self::screen_analytics();
+        elseif ( $action === 'new' )       self::screen_edit();
+        else                               self::screen_list();
     }
 
     public static function screen_list() {
@@ -62,6 +67,7 @@ class Texon_Flipbook_Admin {
                             <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=render&id=' . $d['id'] ) ); ?>">Render</a> |
                             <?php if ( $d['page_count'] ): ?>
                                 <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=hotspots&id=' . $d['id'] ) ); ?>">Hotspots</a> |
+                                <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=analytics&id=' . $d['id'] ) ); ?>">Analytics</a> |
                             <?php endif; ?>
                             <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=texon_flipbook_delete&id=' . $d['id'] ), 'texon_flipbook_delete_' . $d['id'] ) ); ?>" onclick="return confirm('Delete this flipbook?')">Delete</a>
                         </td>
@@ -173,6 +179,133 @@ class Texon_Flipbook_Admin {
                  data-page-count="<?php echo (int) $data['page_count']; ?>"
                  data-hotspots='<?php echo esc_attr( wp_json_encode( $data['hotspots'] ) ); ?>'>
             </div>
+        </div>
+        <?php
+    }
+
+    public static function screen_analytics() {
+        $id = (int) ( $_GET['id'] ?? 0 );
+        $data = Texon_Flipbook_Post_Type::get_data( $id );
+        if ( ! $data ) { echo '<div class="wrap"><p>Flipbook not found.</p></div>'; return; }
+
+        $default_from = gmdate( 'Y-m-d', time() - 30 * DAY_IN_SECONDS );
+        $default_to   = gmdate( 'Y-m-d' );
+        $from = isset( $_GET['from'] ) ? sanitize_text_field( $_GET['from'] ) : $default_from;
+        $to   = isset( $_GET['to'] )   ? sanitize_text_field( $_GET['to'] )   : $default_to;
+        if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $from ) ) $from = $default_from;
+        if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $to ) )   $to   = $default_to;
+
+        $stats = Texon_Flipbook_Events::summary( $id, $from, $to );
+        $counts = $stats['counts'];
+        $page_views = $counts['page_view'] ?? 0;
+        $sessions   = $counts['session_start'] ?? 0;
+        $unique     = $stats['unique_sessions'];
+        $pages_per_session = $unique ? round( $page_views / $unique, 1 ) : 0;
+
+        // Build per-page view map
+        $page_map = [];
+        foreach ( $stats['per_page'] as $r ) $page_map[ (int) $r['page'] ] = (int) $r['c'];
+        $max_page_views = 0;
+        for ( $p = 1; $p <= (int) $data['page_count']; $p++ ) {
+            if ( ( $page_map[ $p ] ?? 0 ) > $max_page_views ) $max_page_views = $page_map[ $p ];
+        }
+
+        ?>
+        <div class="wrap texon-analytics">
+            <h1>Analytics: <?php echo esc_html( $data['title'] ); ?></h1>
+            <form method="get" class="texon-analytics-filter">
+                <input type="hidden" name="page" value="texon-flipbook">
+                <input type="hidden" name="action" value="analytics">
+                <input type="hidden" name="id" value="<?php echo (int) $id; ?>">
+                <label>From <input type="date" name="from" value="<?php echo esc_attr( $from ); ?>"></label>
+                <label>To <input type="date" name="to" value="<?php echo esc_attr( $to ); ?>"></label>
+                <button type="submit" class="button">Apply</button>
+                <span class="texon-range-presets">
+                    <?php foreach ( [ 7 => '7d', 30 => '30d', 90 => '90d', 180 => '180d' ] as $n => $label ): ?>
+                        <a class="button button-small" href="<?php echo esc_url( add_query_arg( [ 'from' => gmdate( 'Y-m-d', time() - $n * DAY_IN_SECONDS ), 'to' => $default_to ] ) ); ?>"><?php echo $label; ?></a>
+                    <?php endforeach; ?>
+                </span>
+            </form>
+
+            <div class="texon-analytics-cards">
+                <div class="texon-card"><span class="n"><?php echo number_format_i18n( $sessions ); ?></span><span class="l">Sessions</span></div>
+                <div class="texon-card"><span class="n"><?php echo number_format_i18n( $unique ); ?></span><span class="l">Unique visitors</span></div>
+                <div class="texon-card"><span class="n"><?php echo number_format_i18n( $page_views ); ?></span><span class="l">Page views</span></div>
+                <div class="texon-card"><span class="n"><?php echo esc_html( $pages_per_session ); ?></span><span class="l">Pages / session</span></div>
+                <div class="texon-card"><span class="n"><?php echo number_format_i18n( $counts['hotspot_click'] ?? 0 ); ?></span><span class="l">Hotspot clicks</span></div>
+                <div class="texon-card"><span class="n"><?php echo number_format_i18n( $counts['search'] ?? 0 ); ?></span><span class="l">Searches</span></div>
+                <div class="texon-card"><span class="n"><?php echo number_format_i18n( ( $counts['download'] ?? 0 ) + ( $counts['print'] ?? 0 ) + ( $counts['share'] ?? 0 ) ); ?></span><span class="l">Downloads / print / share</span></div>
+                <div class="texon-card"><span class="n"><?php echo number_format_i18n( $counts['fullscreen'] ?? 0 ); ?></span><span class="l">Fullscreen opens</span></div>
+            </div>
+
+            <h2>Views per page</h2>
+            <div class="texon-bar-chart">
+                <?php for ( $p = 1; $p <= (int) $data['page_count']; $p++ ):
+                    $v = $page_map[ $p ] ?? 0;
+                    $h = $max_page_views ? round( $v / $max_page_views * 100 ) : 0; ?>
+                    <div class="texon-bar" title="Page <?php echo $p; ?>: <?php echo $v; ?> views">
+                        <div class="texon-bar-fill" style="height:<?php echo $h; ?>%;"><span><?php echo $v ?: ''; ?></span></div>
+                        <div class="texon-bar-label"><?php echo $p; ?></div>
+                    </div>
+                <?php endfor; ?>
+            </div>
+
+            <div class="texon-analytics-grid">
+                <div>
+                    <h2>Top hotspot clicks</h2>
+                    <?php if ( $stats['hotspots'] ): ?>
+                        <table class="wp-list-table widefat fixed striped">
+                            <thead><tr><th>Page</th><th>Destination</th><th class="c">Clicks</th></tr></thead>
+                            <tbody>
+                            <?php foreach ( $stats['hotspots'] as $r ):
+                                $info = json_decode( $r['data'] ?: '{}', true ) ?: [];
+                                $url = $info['url'] ?? '';
+                                $label = $info['label'] ?? ''; ?>
+                                <tr>
+                                    <td><?php echo (int) $r['page']; ?></td>
+                                    <td><?php if ( $url ): ?><a href="<?php echo esc_url( $url ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $label ?: $url ); ?></a><?php else: ?>—<?php endif; ?></td>
+                                    <td class="c"><?php echo number_format_i18n( $r['c'] ); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    <?php else: ?><p><em>No hotspot clicks in this range.</em></p><?php endif; ?>
+                </div>
+
+                <div>
+                    <h2>Top searches</h2>
+                    <?php if ( $stats['searches'] ): ?>
+                        <table class="wp-list-table widefat fixed striped">
+                            <thead><tr><th>Query</th><th class="c">Searches</th></tr></thead>
+                            <tbody>
+                            <?php foreach ( $stats['searches'] as $r ):
+                                $info = json_decode( $r['data'] ?: '{}', true ) ?: [];
+                                $q = $info['q'] ?? ''; if ( $q === '' ) continue; ?>
+                                <tr><td><?php echo esc_html( $q ); ?></td><td class="c"><?php echo number_format_i18n( $r['c'] ); ?></td></tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    <?php else: ?><p><em>No searches in this range.</em></p><?php endif; ?>
+                </div>
+            </div>
+
+            <?php if ( $stats['daily'] ): ?>
+                <h2>Daily activity</h2>
+                <div class="texon-bar-chart daily">
+                    <?php
+                    $max_daily = 0;
+                    foreach ( $stats['daily'] as $d ) if ( (int) $d['v'] > $max_daily ) $max_daily = (int) $d['v'];
+                    foreach ( $stats['daily'] as $d ):
+                        $v = (int) $d['v']; $s = (int) $d['s'];
+                        $h = $max_daily ? round( $v / $max_daily * 100 ) : 0;
+                    ?>
+                        <div class="texon-bar" title="<?php echo esc_attr( $d['d'] ); ?>: <?php echo $v; ?> views, <?php echo $s; ?> sessions">
+                            <div class="texon-bar-fill" style="height:<?php echo $h; ?>%;"></div>
+                            <div class="texon-bar-label"><?php echo esc_html( substr( $d['d'], 5 ) ); ?></div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         </div>
         <?php
     }
