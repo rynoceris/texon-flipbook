@@ -44,6 +44,9 @@ class Texon_Flipbook_Admin {
             <h1 class="wp-heading-inline">Flipbooks</h1>
             <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=new' ) ); ?>" class="page-title-action">Add New</a>
             <hr class="wp-header-end">
+            <?php if ( ! empty( $_GET['deleted'] ) ): ?>
+                <div class="notice notice-success is-dismissible"><p>Flipbook deleted.</p></div>
+            <?php endif; ?>
             <table class="wp-list-table widefat fixed striped">
                 <thead><tr><th>Title</th><th>Pages</th><th>Shortcodes</th><th>Actions</th></tr></thead>
                 <tbody>
@@ -69,7 +72,14 @@ class Texon_Flipbook_Admin {
                                 <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=hotspots&id=' . $d['id'] ) ); ?>">Hotspots</a> |
                                 <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=analytics&id=' . $d['id'] ) ); ?>">Analytics</a> |
                             <?php endif; ?>
-                            <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=texon_flipbook_delete&id=' . $d['id'] ), 'texon_flipbook_delete_' . $d['id'] ) ); ?>" onclick="return confirm('Delete this flipbook?')">Delete</a>
+                            <?php
+                                $confirm_msg = sprintf(
+                                    'Delete "%s"? This will permanently remove the flipbook, its %d rendered page images, all hotspots, and its analytics history. The source PDF will not be affected.',
+                                    esc_js( $d['title'] ),
+                                    (int) $d['page_count']
+                                );
+                            ?>
+                            <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=texon_flipbook_delete&id=' . $d['id'] ), 'texon_flipbook_delete_' . $d['id'] ) ); ?>" onclick="return confirm(<?php echo wp_json_encode( $confirm_msg ); ?>)" style="color:#b32d2e">Delete</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -344,8 +354,22 @@ class Texon_Flipbook_Admin {
         if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
         $id = (int) ( $_GET['id'] ?? 0 );
         check_admin_referer( 'texon_flipbook_delete_' . $id );
+
+        // Remove rendered page images + text.json
+        $pages_dir = get_post_meta( $id, '_pages_dir', true );
+        if ( $pages_dir && is_dir( $pages_dir ) && strpos( $pages_dir, '/texon-flipbook/' ) !== false ) {
+            foreach ( glob( $pages_dir . '/*' ) as $f ) @unlink( $f );
+            @rmdir( $pages_dir );
+        }
+
+        // Remove analytics events for this flipbook
+        global $wpdb;
+        $wpdb->delete( Texon_Flipbook_Events::table_name(), [ 'book_id' => $id ], [ '%d' ] );
+
+        // Remove the post (and its post_meta) — does not touch the source PDF
         wp_delete_post( $id, true );
-        wp_safe_redirect( admin_url( 'admin.php?page=texon-flipbook' ) );
+
+        wp_safe_redirect( admin_url( 'admin.php?page=texon-flipbook&deleted=1' ) );
         exit;
     }
 
