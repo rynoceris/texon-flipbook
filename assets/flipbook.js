@@ -347,16 +347,6 @@
     btnZoomIn.addEventListener('click',  function(){ var r = stage.getBoundingClientRect(); zoomBy(ZOOM_STEP, r.left + r.width/2, r.top + r.height/2); });
     btnZoomOut.addEventListener('click', function(){ var r = stage.getBoundingClientRect(); zoomBy(1/ZOOM_STEP, r.left + r.width/2, r.top + r.height/2); });
 
-    // Wheel zoom (desktop)
-    stage.addEventListener('wheel', function(e){
-      // Only zoom if the wheel originates over the book
-      if (!bookEl.contains(e.target) && e.target !== panner && e.target !== stage) return;
-      if (Math.abs(e.deltaY) < 1) return;
-      e.preventDefault();
-      var factor = e.deltaY < 0 ? 1.12 : 1/1.12;
-      zoomBy(factor, e.clientX, e.clientY);
-    }, { passive: false });
-
     // Pointer drag to pan (mouse + single-finger touch) when zoomed
     var drag = null;
     panner.addEventListener('pointerdown', function(e){
