@@ -17,15 +17,15 @@
 /* No hover highlight — status bar shows the URL on hover */
 
 /* ===== Side arrows ===== */
-.texon-fb-side{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:72px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.15);border:0;border-radius:6px;cursor:pointer;color:#fff;font-size:28px;line-height:1;transition:background .15s,opacity .15s;z-index:5;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.texon-fb-side{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:72px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.15);border:0;border-radius:6px;cursor:pointer;color:#fff;font-size:28px;line-height:1;transition:background .15s,opacity .15s;z-index:10;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .texon-fb-side:hover{background:rgba(255,255,255,.35)}
 .texon-fb-side:disabled{opacity:.25;cursor:not-allowed}
 .texon-fb-side-prev{left:8px}
 .texon-fb-side-next{right:8px}
 
 /* ===== Top bar: counter + zoom ===== */
-.texon-fb-topbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;color:#fff;font:600 12px/1 system-ui,sans-serif;background:rgba(0,0,0,.5);padding:6px 12px;border-radius:20px;z-index:6}
-.texon-fb-tools{position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:6}
+.texon-fb-topbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;color:#fff;font:600 12px/1 system-ui,sans-serif;background:rgba(0,0,0,.5);padding:6px 12px;border-radius:20px;z-index:10}
+.texon-fb-tools{position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:10}
 .texon-fb-tools button{background:rgba(0,0,0,.75);border:0;color:#fff;width:38px;height:38px;border-radius:50%;cursor:pointer;line-height:0;display:inline-flex;align-items:center;justify-content:center;padding:0;transition:background .15s,transform .1s;box-shadow:0 2px 8px rgba(0,0,0,.35)}
 .texon-fb-tools button:hover{background:#06f;transform:scale(1.05)}
 .texon-fb-tools button:active{transform:scale(0.95)}
