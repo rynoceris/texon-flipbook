@@ -85,10 +85,21 @@
       return b;
     }
     var tools = el('div', 'texon-fb-tools');
-    var btnZoomIn  = makeIconBtn('zoomIn',  'Zoom in');
+    var zoomGroup = el('div', 'texon-fb-zoom-group');
     var btnZoomOut = makeIconBtn('zoomOut', 'Zoom out');
-    tools.appendChild(btnZoomIn);
-    tools.appendChild(btnZoomOut);
+    var btnZoomIn  = makeIconBtn('zoomIn',  'Zoom in');
+    var zoomSlider = document.createElement('input');
+    zoomSlider.type = 'range';
+    zoomSlider.min = '1';
+    zoomSlider.max = '4';
+    zoomSlider.step = '0.05';
+    zoomSlider.value = '1';
+    zoomSlider.className = 'texon-fb-zoom-slider';
+    zoomSlider.setAttribute('aria-label', 'Zoom level');
+    zoomGroup.appendChild(btnZoomOut);
+    zoomGroup.appendChild(zoomSlider);
+    zoomGroup.appendChild(btnZoomIn);
+    tools.appendChild(zoomGroup);
     var btnSearch = makeIconBtn('search', 'Search');
     var btnShare  = makeIconBtn('share',  'Share');
     var btnDl     = makeIconBtn('download', 'Download PDF');
@@ -325,6 +336,10 @@
       panner.classList.toggle('on', active);
       btnZoomOut.disabled = zState.scale <= MIN_ZOOM + 0.001;
       btnZoomIn.disabled  = zState.scale >= MAX_ZOOM - 0.001;
+      // Keep the slider in sync (unless the user is actively dragging it)
+      if (document.activeElement !== zoomSlider){
+        zoomSlider.value = String(zState.scale);
+      }
       setTimeout(function(){ bookEl.style.transition = ''; }, 140);
     }
     function zoomBy(factor, cx, cy){
@@ -346,6 +361,20 @@
     function resetZoom(){ zState.scale = 1; zState.x = 0; zState.y = 0; applyZoom(); }
     btnZoomIn.addEventListener('click',  function(){ var r = stage.getBoundingClientRect(); zoomBy(ZOOM_STEP, r.left + r.width/2, r.top + r.height/2); });
     btnZoomOut.addEventListener('click', function(){ var r = stage.getBoundingClientRect(); zoomBy(1/ZOOM_STEP, r.left + r.width/2, r.top + r.height/2); });
+    zoomSlider.addEventListener('input', function(){
+      var next = parseFloat(zoomSlider.value);
+      if (!isFinite(next) || next === zState.scale) return;
+      // Centre zoom on the stage centre when adjusted via the slider
+      var r = stage.getBoundingClientRect();
+      var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      var sx = cx - r.left - r.width / 2;
+      var sy = cy - r.top  - r.height / 2;
+      var k = next / zState.scale;
+      zState.x = sx - (sx - zState.x) * k;
+      zState.y = sy - (sy - zState.y) * k;
+      zState.scale = next;
+      applyZoom();
+    });
 
     // Pointer drag to pan (mouse + single-finger touch) when zoomed.
     // If the pointer barely moves between down/up, treat as a click and

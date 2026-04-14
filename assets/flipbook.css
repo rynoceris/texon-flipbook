@@ -32,6 +32,22 @@
 .texon-fb-tools button:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .texon-fb-tools button svg{width:20px;height:20px;display:block;color:#fff}
 
+/* Zoom group: [−] [slider] [+] */
+.texon-fb-zoom-group{display:inline-flex;align-items:center;gap:4px;background:rgba(0,0,0,.75);border-radius:30px;padding:3px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.texon-fb-zoom-group button{background:transparent !important;box-shadow:none !important;width:32px;height:32px}
+.texon-fb-zoom-group button:hover{background:rgba(255,255,255,.15) !important;transform:none}
+.texon-fb-zoom-group button:disabled{opacity:.3;cursor:not-allowed}
+.texon-fb-zoom-slider{-webkit-appearance:none;appearance:none;width:100px;height:4px;background:rgba(255,255,255,.35);border-radius:2px;outline:none;margin:0 4px;cursor:pointer}
+.texon-fb-zoom-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;background:#fff;border-radius:50%;cursor:grab;border:0;box-shadow:0 1px 3px rgba(0,0,0,.5)}
+.texon-fb-zoom-slider::-webkit-slider-thumb:active{cursor:grabbing;transform:scale(1.15)}
+.texon-fb-zoom-slider::-moz-range-thumb{width:14px;height:14px;background:#fff;border:0;border-radius:50%;cursor:grab;box-shadow:0 1px 3px rgba(0,0,0,.5)}
+.texon-fb-zoom-slider:focus-visible{outline:2px solid #fff;outline-offset:3px}
+
+@media (max-width:640px){
+  .texon-fb-zoom-slider{display:none}
+  .texon-fb-zoom-group{gap:2px;padding:2px}
+}
+
 /* Toast */
 .texon-fb-toast{position:absolute;bottom:80px;left:50%;transform:translate(-50%,8px);background:rgba(0,0,0,.85);color:#fff;padding:8px 14px;border-radius:20px;font:13px/1 system-ui,sans-serif;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:50}
 .texon-fb-toast.on{opacity:1;transform:translate(-50%,0)}
