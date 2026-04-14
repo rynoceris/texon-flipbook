@@ -259,6 +259,18 @@ class Texon_Flipbook_Admin {
             wp_send_json_error( [ 'msg' => $result->get_error_message() ] );
         }
 
+        // Extract text for search (best-effort; don't fail the render if this fails)
+        $text = Texon_Flipbook_Renderer::extract_text_page( $pdf_path, $page );
+        if ( is_wp_error( $text ) ) $text = '';
+        $idx_file = $dir . '/text.json';
+        $index = [];
+        if ( $page > 1 && file_exists( $idx_file ) ) {
+            $decoded = json_decode( (string) file_get_contents( $idx_file ), true );
+            if ( is_array( $decoded ) ) $index = $decoded;
+        }
+        $index[ (string) $page ] = (string) $text;
+        @file_put_contents( $idx_file, wp_json_encode( $index ) );
+
         if ( $page === 1 ) {
             update_post_meta( $id, '_page_width',  $result['width'] );
             update_post_meta( $id, '_page_height', $result['height'] );

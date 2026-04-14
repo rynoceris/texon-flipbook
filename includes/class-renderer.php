@@ -111,6 +111,40 @@ class Texon_Flipbook_Renderer {
         return new WP_Error( 'no_renderer', $msg );
     }
 
+    /**
+     * Extracts plain text from a single PDF page using Ghostscript's txtwrite device.
+     * Returns a string (possibly empty) or WP_Error.
+     */
+    public static function extract_text_page( $pdf_path, $page ) {
+        $pdf_path = realpath( $pdf_path );
+        if ( ! $pdf_path || ! file_exists( $pdf_path ) ) {
+            return new WP_Error( 'pdf_missing', 'PDF not found.' );
+        }
+        $gs = self::find_gs();
+        if ( ! $gs || ! self::has_process_exec() ) return '';
+
+        $tmp = wp_tempnam( 'tfb-txt-' );
+        $args = [
+            '-dNOPAUSE', '-dBATCH', '-dSAFER', '-q',
+            '-sDEVICE=txtwrite',
+            '-dFirstPage=' . (int) $page,
+            '-dLastPage=' . (int) $page,
+            '-sOutputFile=' . escapeshellarg( $tmp ),
+            escapeshellarg( $pdf_path ),
+        ];
+        $cmd = escapeshellcmd( $gs ) . ' ' . implode( ' ', $args ) . ' 2>&1';
+        $res = self::run( $cmd );
+        $text = '';
+        if ( file_exists( $tmp ) ) {
+            $text = (string) @file_get_contents( $tmp );
+            @unlink( $tmp );
+        }
+        // Normalize whitespace, strip control chars
+        $text = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F]+/', ' ', $text );
+        $text = preg_replace( '/\s+/', ' ', $text );
+        return trim( $text );
+    }
+
     public static function clear_output_dir( $output_dir ) {
         if ( ! is_dir( $output_dir ) ) return;
         foreach ( glob( $output_dir . '/page-*.jpg' ) as $f ) { @unlink( $f ); }

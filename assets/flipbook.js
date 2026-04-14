@@ -63,15 +63,27 @@
     var counter = el('span', null, '1 / ' + cfg.pageCount);
     topbar.appendChild(counter);
 
-    var zoom = el('div', 'texon-fb-zoom');
-    var btnFs = el('button', null, '\u26F6');
-    btnFs.type = 'button';
-    btnFs.setAttribute('aria-label', 'Fullscreen');
-    btnFs.title = 'Fullscreen';
-    zoom.appendChild(btnFs);
+    function makeIconBtn(icon, label){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.innerText = icon;
+      b.title = label;
+      b.setAttribute('aria-label', label);
+      return b;
+    }
+    var tools = el('div', 'texon-fb-tools');
+    var btnSearch = makeIconBtn('\u{1F50D}', 'Search');           // 🔍
+    var btnShare  = makeIconBtn('\u{1F517}', 'Share');            // 🔗
+    var btnDl     = makeIconBtn('\u{2B07}\u{FE0F}', 'Download PDF'); // ⬇️
+    var btnPrint  = makeIconBtn('\u{1F5A8}\u{FE0F}', 'Print');    // 🖨️
+    var btnFs     = makeIconBtn('\u26F6', 'Fullscreen');          // ⛶
+    if (cfg.textUrl)       tools.appendChild(btnSearch);
+    tools.appendChild(btnShare);
+    if (cfg.pdfUrl){ tools.appendChild(btnDl); tools.appendChild(btnPrint); }
+    tools.appendChild(btnFs);
 
     stage.appendChild(topbar);
-    stage.appendChild(zoom);
+    stage.appendChild(tools);
     stage.appendChild(btnSidePrev);
     stage.appendChild(btnSideNext);
 
@@ -239,6 +251,149 @@
     }
     btnFs.addEventListener('click', toggleFullscreen);
 
+    // === Download ===
+    btnDl.addEventListener('click', function(){
+      if (!cfg.pdfUrl) return;
+      var a = document.createElement('a');
+      a.href = cfg.pdfUrl;
+      a.download = '';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+
+    // === Print (opens PDF in new tab; browser's PDF viewer prints natively) ===
+    btnPrint.addEventListener('click', function(){
+      if (!cfg.pdfUrl) return;
+      var w = window.open(cfg.pdfUrl, '_blank', 'noopener');
+      if (w){ try { w.focus(); } catch(e){} }
+    });
+
+    // === Share ===
+    function currentShareUrl(){
+      var base = location.href.split('#')[0];
+      var cur = pageFlip.getCurrentPageIndex() + 1;
+      return base + '#page-' + cur;
+    }
+    btnShare.addEventListener('click', function(){
+      var url = currentShareUrl();
+      var title = cfg.title || document.title;
+      if (navigator.share){
+        navigator.share({ title: title, url: url }).catch(function(){});
+        return;
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(function(){
+          flashToast('Link copied');
+        }, function(){ fallbackCopyPrompt(url); });
+      } else {
+        fallbackCopyPrompt(url);
+      }
+    });
+    function fallbackCopyPrompt(url){
+      try { window.prompt('Copy this link:', url); } catch(e){}
+    }
+    function flashToast(msg){
+      var t = document.createElement('div');
+      t.className = 'texon-fb-toast';
+      t.textContent = msg;
+      (inline || viewer).appendChild(t);
+      setTimeout(function(){ t.classList.add('on'); }, 10);
+      setTimeout(function(){ t.classList.remove('on'); setTimeout(function(){ t.remove(); }, 300); }, 1500);
+    }
+
+    // === Search ===
+    var searchIndex = null; // { "1": "text...", ... }
+    var searchPanel = null;
+    function loadSearchIndex(){
+      if (searchIndex) return Promise.resolve(searchIndex);
+      if (!cfg.textUrl) return Promise.reject();
+      return fetch(cfg.textUrl, { credentials: 'same-origin' })
+        .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+        .then(function(j){ searchIndex = j || {}; return searchIndex; });
+    }
+    function openSearch(){
+      if (searchPanel){ searchPanel.classList.add('on'); searchPanel.querySelector('input').focus(); return; }
+      searchPanel = el('div', 'texon-fb-search');
+      var bar = el('div', 'texon-fb-search-bar');
+      var inp = document.createElement('input');
+      inp.type = 'search';
+      inp.placeholder = 'Search catalog…';
+      inp.setAttribute('aria-label', 'Search catalog');
+      var close = makeIconBtn('\u2715', 'Close search');
+      close.className = 'texon-fb-search-close';
+      bar.appendChild(inp); bar.appendChild(close);
+      var results = el('div', 'texon-fb-search-results');
+      results.setAttribute('role', 'listbox');
+      searchPanel.appendChild(bar); searchPanel.appendChild(results);
+      inline.appendChild(searchPanel);
+
+      close.addEventListener('click', function(){ searchPanel.classList.remove('on'); });
+      searchPanel.addEventListener('keydown', function(e){ if (e.key === 'Escape') searchPanel.classList.remove('on'); });
+
+      var debounce;
+      inp.addEventListener('input', function(){
+        clearTimeout(debounce);
+        debounce = setTimeout(function(){ runSearch(inp.value.trim(), results); }, 120);
+      });
+      results.addEventListener('click', function(e){
+        var r = e.target.closest('[data-page]');
+        if (!r) return;
+        var p = parseInt(r.getAttribute('data-page'), 10);
+        if (isFinite(p)){
+          try { pageFlip.flip(p - 1, 'top'); } catch(_){}
+          searchPanel.classList.remove('on');
+        }
+      });
+
+      requestAnimationFrame(function(){ searchPanel.classList.add('on'); inp.focus(); });
+    }
+    function escHtml(s){ return String(s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
+    function runSearch(q, resultsEl){
+      resultsEl.textContent = '';
+      if (!q) return;
+      loadSearchIndex().then(function(idx){
+        var needle = q.toLowerCase();
+        var hits = [];
+        Object.keys(idx).sort(function(a,b){ return parseInt(a,10)-parseInt(b,10); }).forEach(function(p){
+          var txt = (idx[p] || '');
+          var lc = txt.toLowerCase();
+          var pos = lc.indexOf(needle);
+          if (pos === -1) return;
+          var start = Math.max(0, pos - 40);
+          var end   = Math.min(txt.length, pos + q.length + 60);
+          var snippet = (start > 0 ? '…' : '') + txt.slice(start, end) + (end < txt.length ? '…' : '');
+          var safe = escHtml(snippet);
+          var rx = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+          var highlighted = safe.replace(rx, '<mark>$1</mark>');
+          hits.push({ page: parseInt(p, 10), html: highlighted });
+        });
+        if (!hits.length){
+          var none = el('div', 'texon-fb-search-none', 'No results for "' + q + '"');
+          resultsEl.appendChild(none);
+          return;
+        }
+        hits.forEach(function(h){
+          var row = document.createElement('button');
+          row.type = 'button';
+          row.className = 'texon-fb-search-result';
+          row.setAttribute('data-page', h.page);
+          // Use textContent for the page label; innerHTML only for the pre-escaped+marked snippet
+          var label = el('span', 'texon-fb-search-page', 'Page ' + h.page);
+          var snip  = document.createElement('span');
+          snip.className = 'texon-fb-search-snippet';
+          snip.innerHTML = h.html;
+          row.appendChild(label); row.appendChild(snip);
+          resultsEl.appendChild(row);
+        });
+      }).catch(function(){
+        var err = el('div', 'texon-fb-search-none', 'Search index not available');
+        resultsEl.appendChild(err);
+      });
+    }
+    btnSearch.addEventListener('click', openSearch);
+
     // Sync icon + re-layout when the native Fullscreen API state changes
     function onFsChange(){
       var on = !!(document.fullscreenElement || document.webkitFullscreenElement);
@@ -258,6 +413,10 @@
       else if (e.key === 'Home') { try { pageFlip.flip(0, 'top'); } catch(_){} }
       else if (e.key === 'End')  { try { pageFlip.flip(cfg.pageCount - 1, 'top'); } catch(_){} }
       else if (e.key && e.key.toLowerCase() === 'f') toggleFullscreen();
+      else if (e.key === '/' && cfg.textUrl && !e.ctrlKey && !e.metaKey){
+        var tag = (e.target && e.target.tagName) || '';
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA'){ e.preventDefault(); openSearch(); }
+      }
       else if (e.key === 'Escape' && cssFs) exitCssFs();
     }
     document.addEventListener('keydown', onKey);

@@ -27,6 +27,8 @@ class Texon_Flipbook_Shortcode {
 
         $uploads = wp_upload_dir();
         $pages_url = str_replace( $uploads['basedir'], $uploads['baseurl'], $data['pages_dir'] );
+        $pdf_url   = self::path_to_url( $data['pdf_path'] );
+        $text_url  = $pages_url . '/text.json';
 
         $config = [
             'pagesUrl'   => $pages_url,
@@ -35,6 +37,8 @@ class Texon_Flipbook_Shortcode {
             'pageHeight' => $data['page_height'],
             'hotspots'   => (object) $data['hotspots'],
             'title'      => $data['title'],
+            'pdfUrl'     => $pdf_url,
+            'textUrl'    => $text_url,
         ];
         $config_json = esc_attr( wp_json_encode( $config ) );
         $uid = 'texon-fb-' . $id . '-' . wp_rand( 1000, 9999 );
@@ -59,5 +63,24 @@ class Texon_Flipbook_Shortcode {
             <div class="texon-fb-viewer" data-texon-fb-config="<?php echo $config_json; ?>"></div>
         </div>
         <?php return ob_get_clean();
+    }
+
+    private static function path_to_url( $path ) {
+        if ( ! $path ) return '';
+        $uploads = wp_upload_dir();
+        $candidates = [
+            [ $uploads['basedir'], $uploads['baseurl'] ],
+            [ WP_CONTENT_DIR,      content_url() ],
+            [ ABSPATH,             site_url() ],
+        ];
+        $path_real = realpath( $path ) ?: $path;
+        foreach ( $candidates as $c ) {
+            list( $dir, $url ) = $c;
+            $dir_real = realpath( $dir ) ?: $dir;
+            if ( strpos( $path_real, $dir_real ) === 0 ) {
+                return rtrim( $url, '/' ) . str_replace( '\\', '/', substr( $path_real, strlen( $dir_real ) ) );
+            }
+        }
+        return '';
     }
 }
