@@ -347,24 +347,64 @@
     btnZoomIn.addEventListener('click',  function(){ var r = stage.getBoundingClientRect(); zoomBy(ZOOM_STEP, r.left + r.width/2, r.top + r.height/2); });
     btnZoomOut.addEventListener('click', function(){ var r = stage.getBoundingClientRect(); zoomBy(1/ZOOM_STEP, r.left + r.width/2, r.top + r.height/2); });
 
-    // Pointer drag to pan (mouse + single-finger touch) when zoomed
+    // Pointer drag to pan (mouse + single-finger touch) when zoomed.
+    // If the pointer barely moves between down/up, treat as a click and
+    // forward it to any hotspot underneath — this keeps product links
+    // clickable while the panner overlay is active.
+    var CLICK_TOLERANCE_PX = 5;
+    var CLICK_MAX_MS = 400;
     var drag = null;
+    var lastTapAt = 0;
+    function forwardClickAt(clientX, clientY){
+      // Temporarily disable panner pointer events so elementsFromPoint
+      // can see what's beneath.
+      var prevPE = panner.style.pointerEvents;
+      panner.style.pointerEvents = 'none';
+      var target = document.elementFromPoint(clientX, clientY);
+      panner.style.pointerEvents = prevPE;
+      if (!target) return false;
+      var a = target.closest && target.closest('a.texon-fb-hotspot, a');
+      if (a && (bookEl.contains(a) || a.classList.contains('texon-fb-hotspot'))){
+        a.click();
+        return true;
+      }
+      return false;
+    }
     panner.addEventListener('pointerdown', function(e){
       if (zState.scale <= 1 || e.isPrimary === false) return;
       if (e.pointerType === 'touch' && pinch.active) return;
       panner.setPointerCapture(e.pointerId);
-      drag = { id: e.pointerId, startX: e.clientX, startY: e.clientY, ox: zState.x, oy: zState.y };
+      drag = {
+        id: e.pointerId, startX: e.clientX, startY: e.clientY,
+        ox: zState.x, oy: zState.y, moved: false, t: Date.now()
+      };
     });
     panner.addEventListener('pointermove', function(e){
       if (!drag || e.pointerId !== drag.id) return;
-      zState.x = drag.ox + (e.clientX - drag.startX);
-      zState.y = drag.oy + (e.clientY - drag.startY);
-      applyZoom();
+      var dx = e.clientX - drag.startX;
+      var dy = e.clientY - drag.startY;
+      if (!drag.moved && (Math.abs(dx) > CLICK_TOLERANCE_PX || Math.abs(dy) > CLICK_TOLERANCE_PX)){
+        drag.moved = true;
+      }
+      if (drag.moved){
+        zState.x = drag.ox + dx;
+        zState.y = drag.oy + dy;
+        applyZoom();
+      }
     });
     function endDrag(e){
-      if (drag && e.pointerId === drag.id){
-        try { panner.releasePointerCapture(drag.id); } catch(_){}
-        drag = null;
+      if (!drag || e.pointerId !== drag.id) return;
+      var wasClick = !drag.moved && (Date.now() - drag.t) < CLICK_MAX_MS;
+      var cx = e.clientX, cy = e.clientY;
+      try { panner.releasePointerCapture(drag.id); } catch(_){}
+      drag = null;
+      if (wasClick){
+        // Double-tap to reset zoom
+        var now = Date.now();
+        if (now - lastTapAt < 350){ lastTapAt = 0; resetZoom(); return; }
+        lastTapAt = now;
+        // Forward to a hotspot if one is under the tap
+        forwardClickAt(cx, cy);
       }
     }
     panner.addEventListener('pointerup', endDrag);
@@ -403,9 +443,6 @@
     stage.addEventListener('touchend', function(e){
       if (e.touches.length < 2) pinch.active = false;
     });
-
-    // Double-click/tap to reset
-    bookEl.addEventListener('dblclick', function(e){ if (zState.scale > 1){ e.preventDefault(); resetZoom(); } });
 
     applyZoom();
 
