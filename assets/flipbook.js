@@ -796,32 +796,54 @@
     });
   }
 
+  // Portal modals to document.body on open so they escape ancestor stacking
+  // contexts (themes commonly use transform/filter/will-change on wrappers,
+  // which traps position:fixed elements). A hidden placeholder is left in the
+  // original location and used to restore the modal on close.
+  function openModal(modal){
+    if (modal.parentNode !== document.body){
+      var anchor = document.createElement('div');
+      anchor.style.display = 'none';
+      anchor.setAttribute('data-texon-fb-anchor', '1');
+      modal.parentNode.insertBefore(anchor, modal);
+      modal._tfbAnchor = anchor;
+      document.body.appendChild(modal);
+    }
+    modal.style.display = 'flex';
+    document.documentElement.classList.add('texon-fb-fs-lock');
+    document.body.classList.add('texon-fb-open');
+    document.body.classList.add('texon-fb-fs-lock');
+    initAll(modal);
+  }
+  function closeModal(modal){
+    modal.style.display = 'none';
+    document.documentElement.classList.remove('texon-fb-fs-lock');
+    document.body.classList.remove('texon-fb-open');
+    document.body.classList.remove('texon-fb-fs-lock');
+    if (modal._tfbAnchor && modal._tfbAnchor.parentNode){
+      modal._tfbAnchor.parentNode.insertBefore(modal, modal._tfbAnchor);
+      modal._tfbAnchor.parentNode.removeChild(modal._tfbAnchor);
+      modal._tfbAnchor = null;
+    }
+  }
+
   function wireModals(){
     document.querySelectorAll('[data-texon-fb-open]').forEach(function(btn){
       btn.addEventListener('click', function(){
         var modal = document.getElementById(btn.getAttribute('data-texon-fb-open'));
-        if (!modal) return;
-        modal.style.display = 'flex';
-        document.body.classList.add('texon-fb-open');
-        initAll(modal);
+        if (modal) openModal(modal);
       });
     });
     document.addEventListener('click', function(e){
       var targ = e.target.closest ? e.target.closest('[data-texon-fb-close]') : null;
       if (!targ) return;
       var modal = targ.closest('.texon-fb-modal');
-      if (modal){
-        modal.style.display = 'none';
-        document.body.classList.remove('texon-fb-open');
-      }
+      if (modal) closeModal(modal);
     });
     document.addEventListener('keydown', function(e){
       if (e.key === 'Escape'){
         document.querySelectorAll('.texon-fb-modal').forEach(function(m){
-          if (m.style.display !== 'none'){
-            m.style.display = 'none';
-            document.body.classList.remove('texon-fb-open');
-          }
+          if (m.style.display !== 'none') closeModal(m);
         });
       }
     });
