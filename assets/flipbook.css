@@ -1,0 +1,19 @@
+.texon-fb-inline{width:100%;position:relative;background:#1a1a1a;border-radius:6px;overflow:hidden}
+.texon-fb-viewer{position:relative;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;box-sizing:border-box}
+.texon-fb-stage{position:relative;flex:1;display:flex;align-items:center;justify-content:center;width:100%;max-width:100%}
+.texon-fb-book{margin:0 auto}
+.texon-fb-controls{display:flex;gap:10px;align-items:center;margin-top:12px;color:#fff;font:13px/1 system-ui,sans-serif}
+.texon-fb-controls button{background:#fff;color:#222;border:0;border-radius:4px;padding:8px 14px;cursor:pointer;font-weight:600}
+.texon-fb-controls button:disabled{opacity:.4;cursor:not-allowed}
+.texon-fb-page{position:relative;width:100%;height:100%;background:#fff;overflow:hidden}
+.texon-fb-page img{width:100%;height:100%;display:block;object-fit:contain}
+.texon-fb-hotspot{position:absolute;display:block;background:rgba(0,120,255,0);border:0;cursor:pointer;transition:background .15s}
+.texon-fb-hotspot:hover{background:rgba(0,120,255,.22);outline:2px solid rgba(0,120,255,.7)}
+/* Modal */
+.texon-fb-modal{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center}
+.texon-fb-modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.85)}
+.texon-fb-modal-inner{position:relative;width:96vw;height:94vh;background:#111;border-radius:8px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.texon-fb-modal .texon-fb-viewer{height:100%}
+.texon-fb-close{position:absolute;top:10px;right:10px;z-index:2;background:rgba(255,255,255,.9);border:0;border-radius:50%;width:38px;height:38px;font-size:22px;cursor:pointer;font-weight:700;line-height:1}
+.texon-fb-close:hover{background:#fff}
+body.texon-fb-open{overflow:hidden}
