@@ -17,8 +17,9 @@ class Texon_Flipbook_Admin {
         wp_enqueue_style( 'texon-flipbook-admin', TEXON_FLIPBOOK_URL . 'assets/admin.css', [], TEXON_FLIPBOOK_VERSION );
         wp_enqueue_script( 'texon-flipbook-admin', TEXON_FLIPBOOK_URL . 'assets/admin.js', [ 'jquery' ], TEXON_FLIPBOOK_VERSION, true );
         wp_localize_script( 'texon-flipbook-admin', 'TexonFlipbookAdmin', [
-            'ajaxurl' => admin_url( 'admin-ajax.php' ),
-            'nonce'   => wp_create_nonce( 'texon_flipbook_hotspots' ),
+            'ajaxurl'       => admin_url( 'admin-ajax.php' ),
+            'nonce'         => wp_create_nonce( 'texon_flipbook_hotspots' ),
+            'render_nonce'  => wp_create_nonce( 'texon_flipbook_render' ),
         ] );
     }
 
@@ -26,6 +27,7 @@ class Texon_Flipbook_Admin {
         $action = $_GET['action'] ?? 'list';
         if ( $action === 'edit' )         self::screen_edit();
         elseif ( $action === 'hotspots' ) self::screen_hotspots();
+        elseif ( $action === 'render' )   self::screen_render();
         elseif ( $action === 'new' )      self::screen_edit();
         else                              self::screen_list();
     }
@@ -48,12 +50,19 @@ class Texon_Flipbook_Admin {
                         <td><strong><?php echo esc_html( $d['title'] ); ?></strong></td>
                         <td><?php echo (int) $d['page_count']; ?></td>
                         <td>
-                            <code>[texon_flipbook id="<?php echo (int) $d['id']; ?>"]</code><br>
-                            <code>[texon_flipbook id="<?php echo (int) $d['id']; ?>" trigger="button" label="View Catalog"]</code>
+                            <?php if ( $d['page_count'] ): ?>
+                                <code>[texon_flipbook id="<?php echo (int) $d['id']; ?>"]</code><br>
+                                <code>[texon_flipbook id="<?php echo (int) $d['id']; ?>" trigger="button" label="View Catalog"]</code>
+                            <?php else: ?>
+                                <em>Not rendered yet</em>
+                            <?php endif; ?>
                         </td>
                         <td>
                             <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=edit&id=' . $d['id'] ) ); ?>">Edit</a> |
-                            <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=hotspots&id=' . $d['id'] ) ); ?>">Hotspots</a> |
+                            <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=render&id=' . $d['id'] ) ); ?>">Render</a> |
+                            <?php if ( $d['page_count'] ): ?>
+                                <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=hotspots&id=' . $d['id'] ) ); ?>">Hotspots</a> |
+                            <?php endif; ?>
                             <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=texon_flipbook_delete&id=' . $d['id'] ), 'texon_flipbook_delete_' . $d['id'] ) ); ?>" onclick="return confirm('Delete this flipbook?')">Delete</a>
                         </td>
                     </tr>
@@ -70,6 +79,9 @@ class Texon_Flipbook_Admin {
         ?>
         <div class="wrap">
             <h1><?php echo $data ? 'Edit Flipbook' : 'New Flipbook'; ?></h1>
+            <?php if ( ! empty( $_GET['saved'] ) ): ?>
+                <div class="notice notice-success"><p>Saved.</p></div>
+            <?php endif; ?>
             <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                 <?php wp_nonce_field( 'texon_flipbook_save' ); ?>
                 <input type="hidden" name="action" value="texon_flipbook_save">
@@ -77,25 +89,58 @@ class Texon_Flipbook_Admin {
                 <table class="form-table">
                     <tr><th><label for="title">Title</label></th>
                         <td><input type="text" id="title" name="title" class="regular-text" value="<?php echo esc_attr( $data['title'] ?? '' ); ?>" required></td></tr>
-                    <tr><th><label for="pdf_path">PDF Path</label></th>
+                    <tr><th><label for="pdf_path">PDF Path or URL</label></th>
                         <td>
-                            <input type="text" id="pdf_path" name="pdf_path" class="large-text" value="<?php echo esc_attr( $data['pdf_path'] ?? '' ); ?>" placeholder="/home/.../uploads/catalog/your-catalog.pdf" required>
+                            <input type="text" id="pdf_path" name="pdf_path" class="large-text" value="<?php echo esc_attr( $data['pdf_path'] ?? '' ); ?>" placeholder="https://…/wp-content/uploads/catalog/your-catalog.pdf" required>
                             <button type="button" class="button" id="texon-pick-pdf">Choose from Media Library</button>
-                            <p class="description">Absolute server path to the PDF.</p>
+                            <p class="description">URL or filesystem path. URLs are auto-converted to paths on save.</p>
                         </td></tr>
                     <?php if ( $data ): ?>
                     <tr><th>Pages Rendered</th>
-                        <td><?php echo (int) $data['page_count']; ?> pages at <?php echo (int) $data['page_width']; ?>×<?php echo (int) $data['page_height']; ?>px</td></tr>
+                        <td>
+                            <?php if ( $data['page_count'] ): ?>
+                                <?php echo (int) $data['page_count']; ?> pages at <?php echo (int) $data['page_width']; ?>×<?php echo (int) $data['page_height']; ?>px
+                            <?php else: ?>
+                                <em>Not yet rendered.</em>
+                            <?php endif; ?>
+                        </td></tr>
                     <?php endif; ?>
                 </table>
                 <p>
                     <button type="submit" class="button button-primary">Save</button>
                     <?php if ( $data ): ?>
-                        <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=texon_flipbook_render&id=' . $id ), 'texon_flipbook_render_' . $id ) ); ?>" class="button">Re-render Pages</a>
-                        <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=hotspots&id=' . $id ) ); ?>" class="button">Edit Hotspots →</a>
+                        <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=render&id=' . $id ) ); ?>" class="button"><?php echo $data['page_count'] ? 'Re-render Pages' : 'Render Pages'; ?></a>
+                        <?php if ( $data['page_count'] ): ?>
+                            <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=hotspots&id=' . $id ) ); ?>" class="button">Edit Hotspots →</a>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </p>
             </form>
+        </div>
+        <?php
+    }
+
+    public static function screen_render() {
+        $id = (int) ( $_GET['id'] ?? 0 );
+        $data = Texon_Flipbook_Post_Type::get_data( $id );
+        if ( ! $data ) { echo '<div class="wrap"><p>Flipbook not found.</p></div>'; return; }
+        if ( ! $data['pdf_path'] || ! file_exists( $data['pdf_path'] ) ) {
+            echo '<div class="wrap"><h1>Render Pages</h1><div class="notice notice-error"><p>PDF not found at: <code>' . esc_html( $data['pdf_path'] ) . '</code></p></div></div>';
+            return;
+        }
+        ?>
+        <div class="wrap">
+            <h1>Rendering: <?php echo esc_html( $data['title'] ); ?></h1>
+            <p>Source: <code><?php echo esc_html( $data['pdf_path'] ); ?></code></p>
+            <div id="texon-render" data-book-id="<?php echo (int) $id; ?>">
+                <div class="texon-render-bar"><div class="texon-render-bar-fill" style="width:0%"></div></div>
+                <p class="texon-render-status">Preparing…</p>
+                <pre class="texon-render-log" style="display:none"></pre>
+                <p class="texon-render-done" style="display:none">
+                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=hotspots&id=' . $id ) ); ?>" class="button button-primary">Edit Hotspots →</a>
+                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=edit&id=' . $id ) ); ?>" class="button">Back to Flipbook</a>
+                </p>
+            </div>
         </div>
         <?php
     }
@@ -139,6 +184,7 @@ class Texon_Flipbook_Admin {
         $title = sanitize_text_field( $_POST['title'] ?? '' );
         $pdf_path = self::normalize_path( trim( $_POST['pdf_path'] ?? '' ) );
 
+        $is_new = ! $id;
         if ( $id ) {
             wp_update_post( [ 'ID' => $id, 'post_title' => $title ] );
         } else {
@@ -148,25 +194,16 @@ class Texon_Flipbook_Admin {
                 'post_title'  => $title,
             ] );
         }
+        $prev_pdf = get_post_meta( $id, '_pdf_path', true );
         update_post_meta( $id, '_pdf_path', $pdf_path );
 
-        // Auto-render on create or if pdf changed
-        $prev_pdf = get_post_meta( $id, '_pdf_path_rendered', true );
-        if ( $pdf_path && $pdf_path !== $prev_pdf ) {
-            self::do_render( $id, $pdf_path );
+        // If the PDF changed (or this is new), send the user to the render screen.
+        if ( $pdf_path && ( $is_new || $pdf_path !== $prev_pdf ) ) {
+            wp_safe_redirect( admin_url( 'admin.php?page=texon-flipbook&action=render&id=' . $id ) );
+            exit;
         }
 
         wp_safe_redirect( admin_url( 'admin.php?page=texon-flipbook&action=edit&id=' . $id . '&saved=1' ) );
-        exit;
-    }
-
-    public static function handle_render() {
-        if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
-        $id = (int) ( $_GET['id'] ?? 0 );
-        check_admin_referer( 'texon_flipbook_render_' . $id );
-        $pdf_path = get_post_meta( $id, '_pdf_path', true );
-        self::do_render( $id, $pdf_path );
-        wp_safe_redirect( admin_url( 'admin.php?page=texon-flipbook&action=edit&id=' . $id . '&rendered=1' ) );
         exit;
     }
 
@@ -180,13 +217,76 @@ class Texon_Flipbook_Admin {
     }
 
     /**
+     * AJAX: renders one page at a time.
+     * First call (page=0) counts pages and clears output dir.
+     * Subsequent calls render page 1..N and return progress.
+     */
+    public static function ajax_render_page() {
+        check_ajax_referer( 'texon_flipbook_render', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( [ 'msg' => 'unauthorized' ] );
+
+        $id   = (int) ( $_POST['id'] ?? 0 );
+        $page = (int) ( $_POST['page'] ?? 0 );
+        $data = Texon_Flipbook_Post_Type::get_data( $id );
+        if ( ! $data ) wp_send_json_error( [ 'msg' => 'not_found' ] );
+
+        $pdf_path = $data['pdf_path'];
+        if ( ! $pdf_path || ! file_exists( $pdf_path ) ) {
+            wp_send_json_error( [ 'msg' => 'PDF not found: ' . $pdf_path ] );
+        }
+
+        $uploads = wp_upload_dir();
+        $slug = sanitize_title( get_the_title( $id ) ?: 'flipbook-' . $id );
+        $dir  = $uploads['basedir'] . '/texon-flipbook/' . $slug . '-' . $id;
+
+        if ( $page <= 0 ) {
+            // Initialize: count pages and clear old output
+            $count = Texon_Flipbook_Renderer::get_page_count( $pdf_path );
+            if ( is_wp_error( $count ) ) {
+                wp_send_json_error( [ 'msg' => $count->get_error_message() ] );
+            }
+            Texon_Flipbook_Renderer::clear_output_dir( $dir );
+            update_post_meta( $id, '_pages_dir', $dir );
+            update_post_meta( $id, '_page_count', 0 ); // reset until render completes
+            wp_send_json_success( [ 'total' => (int) $count, 'next' => 1 ] );
+        }
+
+        $total = (int) ( $_POST['total'] ?? 0 );
+        if ( $total <= 0 ) wp_send_json_error( [ 'msg' => 'bad_total' ] );
+
+        $result = Texon_Flipbook_Renderer::render_page( $pdf_path, $dir, $page );
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error( [ 'msg' => $result->get_error_message() ] );
+        }
+
+        if ( $page === 1 ) {
+            update_post_meta( $id, '_page_width',  $result['width'] );
+            update_post_meta( $id, '_page_height', $result['height'] );
+        }
+
+        $done = ( $page >= $total );
+        if ( $done ) {
+            update_post_meta( $id, '_page_count', $total );
+            update_post_meta( $id, '_pdf_path_rendered', $pdf_path );
+        }
+
+        wp_send_json_success( [
+            'page'     => $page,
+            'total'    => $total,
+            'next'     => $done ? 0 : $page + 1,
+            'width'    => $result['width'],
+            'height'   => $result['height'],
+            'done'     => $done,
+        ] );
+    }
+
+    /**
      * Accepts either a filesystem path or a URL (full or relative) and returns a filesystem path.
      * Handles uploads URLs, site URLs, and /wp-content/... style paths.
      */
     private static function normalize_path( $input ) {
         if ( $input === '' ) return '';
 
-        // Already a filesystem path
         if ( $input[0] === '/' && strpos( $input, '://' ) === false && file_exists( $input ) ) {
             return $input;
         }
@@ -200,7 +300,6 @@ class Texon_Flipbook_Admin {
         ];
         foreach ( $candidates as $c ) {
             list( $url, $dir ) = $c;
-            // Strip protocol for protocol-relative matching
             $u = preg_replace( '#^https?:#', '', $url );
             $i = preg_replace( '#^https?:#', '', $input );
             if ( strpos( $i, $u ) === 0 ) {
@@ -211,30 +310,12 @@ class Texon_Flipbook_Admin {
             }
         }
 
-        // Handle site-relative paths like /wp-content/uploads/...
         if ( $input[0] === '/' && strpos( $input, '://' ) === false ) {
             $path = rtrim( ABSPATH, '/' ) . $input;
             if ( file_exists( $path ) ) return $path;
         }
 
-        // Give up and return as-is; render step will surface the error.
         return $input;
-    }
-
-    private static function do_render( $id, $pdf_path ) {
-        $uploads = wp_upload_dir();
-        $slug = sanitize_title( get_the_title( $id ) ?: 'flipbook-' . $id );
-        $dir = $uploads['basedir'] . '/texon-flipbook/' . $slug . '-' . $id;
-        $result = Texon_Flipbook_Renderer::render( $pdf_path, $dir );
-        if ( is_wp_error( $result ) ) {
-            set_transient( 'texon_flipbook_err_' . $id, $result->get_error_message(), 60 );
-            return;
-        }
-        update_post_meta( $id, '_pages_dir', $dir );
-        update_post_meta( $id, '_page_count', $result['count'] );
-        update_post_meta( $id, '_page_width', $result['width'] );
-        update_post_meta( $id, '_page_height', $result['height'] );
-        update_post_meta( $id, '_pdf_path_rendered', $pdf_path );
     }
 
     public static function ajax_save_hotspots() {
@@ -244,7 +325,6 @@ class Texon_Flipbook_Admin {
         $raw = wp_unslash( $_POST['hotspots'] ?? '{}' );
         $decoded = json_decode( $raw, true );
         if ( ! is_array( $decoded ) ) wp_send_json_error( 'bad_json' );
-        // Sanitize: expect { "1": [ {x,y,w,h,url,label}, ... ], ... }
         $clean = [];
         foreach ( $decoded as $page => $spots ) {
             $page = (int) $page;

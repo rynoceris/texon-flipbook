@@ -9,3 +9,11 @@
 #texon-page-canvas .texon-spot .texon-handle{position:absolute;right:-6px;bottom:-6px;width:12px;height:12px;background:#06f;border:2px solid #fff;cursor:nwse-resize;border-radius:50%}
 #texon-page-canvas .texon-spot .texon-label{position:absolute;top:-20px;left:0;font-size:11px;background:#06f;color:#fff;padding:1px 6px;border-radius:3px;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
 #texon-page-canvas.drawing{cursor:crosshair}
+/* Render progress */
+#texon-render{max-width:700px;margin-top:20px}
+.texon-render-bar{height:20px;background:#eee;border-radius:10px;overflow:hidden;border:1px solid #ccc}
+.texon-render-bar-fill{height:100%;background:linear-gradient(90deg,#06f,#0af);width:0;transition:width .3s}
+.texon-render-status{margin-top:10px;font-size:14px}
+.texon-render-status.error{color:#d63638;font-weight:600}
+.texon-render-status.success{color:#00a32a;font-weight:600}
+.texon-render-log{background:#1e1e1e;color:#eee;padding:10px;border-radius:4px;max-height:220px;overflow:auto;font-size:12px}

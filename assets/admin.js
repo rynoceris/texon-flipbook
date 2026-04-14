@@ -13,6 +13,62 @@
     frame.open();
   });
 
+  // Render progress
+  var $render = $('#texon-render');
+  if ($render.length){
+    var bookId = parseInt($render.data('book-id'), 10);
+    var $bar = $render.find('.texon-render-bar-fill');
+    var $status = $render.find('.texon-render-status');
+    var $log = $render.find('.texon-render-log');
+    var $done = $render.find('.texon-render-done');
+    var total = 0;
+
+    function log(line){
+      $log.show().append(document.createTextNode(line + '\n'));
+      $log[0].scrollTop = $log[0].scrollHeight;
+    }
+    function fail(msg){
+      $status.addClass('error').text('Error: ' + msg);
+      log('ERROR: ' + msg);
+    }
+
+    function renderPage(page){
+      $.post(TexonFlipbookAdmin.ajaxurl, {
+        action: 'texon_flipbook_render_page',
+        nonce: TexonFlipbookAdmin.render_nonce,
+        id: bookId, page: page, total: total
+      }).done(function(r){
+        if (!r || !r.success) { fail((r && r.data && r.data.msg) || 'unknown'); return; }
+        var d = r.data;
+        log('Rendered page ' + d.page + ' of ' + d.total + ' (' + d.width + '×' + d.height + ')');
+        $bar.css('width', (d.page / d.total * 100) + '%');
+        $status.text('Rendering page ' + d.page + ' of ' + d.total + '…');
+        if (d.done){
+          $status.removeClass('error').addClass('success').text('Done — ' + d.total + ' pages rendered.');
+          $done.show();
+        } else {
+          setTimeout(function(){ renderPage(d.next); }, 50);
+        }
+      }).fail(function(xhr){
+        fail('HTTP ' + xhr.status + ' — the server rejected the request. ' + (xhr.responseText || '').slice(0,200));
+      });
+    }
+
+    // Kick off: init call (page=0) returns total
+    $status.text('Counting pages…');
+    $.post(TexonFlipbookAdmin.ajaxurl, {
+      action: 'texon_flipbook_render_page',
+      nonce: TexonFlipbookAdmin.render_nonce,
+      id: bookId, page: 0
+    }).done(function(r){
+      if (!r || !r.success) { fail((r && r.data && r.data.msg) || 'init failed'); return; }
+      total = r.data.total;
+      log('PDF has ' + total + ' pages.');
+      $status.text('Rendering…');
+      renderPage(r.data.next);
+    }).fail(function(xhr){ fail('Init failed: HTTP ' + xhr.status); });
+  }
+
   // Hotspot editor
   var $canvas = $('#texon-page-canvas');
   if (!$canvas.length) return;
