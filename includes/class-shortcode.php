@@ -12,7 +12,7 @@ class Texon_Flipbook_Shortcode {
             'id'      => 0,
             'trigger' => 'inline',     // inline | button
             'label'   => 'View Catalog',
-            'height'  => '700',        // inline height in px
+            'height'  => '820',        // inline height in px
         ], $atts, 'texon_flipbook' );
 
         $id = (int) $atts['id'];
@@ -46,7 +46,9 @@ class Texon_Flipbook_Shortcode {
                 <div class="texon-fb-modal-backdrop" data-texon-fb-close="1"></div>
                 <div class="texon-fb-modal-inner">
                     <button class="texon-fb-close" data-texon-fb-close="1" aria-label="Close">×</button>
-                    <div class="texon-fb-viewer" data-texon-fb-config="<?php echo $config_json; ?>"></div>
+                    <div class="texon-fb-inline">
+                        <div class="texon-fb-viewer" data-texon-fb-config="<?php echo $config_json; ?>"></div>
+                    </div>
                 </div>
             </div>
             <?php return ob_get_clean();
