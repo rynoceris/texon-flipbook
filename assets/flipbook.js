@@ -184,20 +184,72 @@
       try { pageFlip.flip(p - 1, 'top'); } catch(err){ try { pageFlip.turnToPage(p - 1); } catch(_){} }
     });
 
+    // iOS Safari/Chrome: Fullscreen API is unavailable on non-video elements,
+    // so we always use a CSS-class fallback there.
+    var isIOS = /iP(hone|od|ad)/.test(navigator.platform) ||
+                (navigator.userAgent.indexOf('Mac') > -1 && 'ontouchend' in document);
+    var hasFsApi = !isIOS && !!(
+      inline.requestFullscreen || inline.webkitRequestFullscreen
+    );
+    var cssFs = false;
+    var FS_ENTER = '\u26F6'; // ⛶ enter
+    var FS_EXIT  = '\u2715'; // ✕ exit
+
+    function setFsIcon(on){ btnFs.textContent = on ? FS_EXIT : FS_ENTER; btnFs.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Fullscreen'); }
+    setFsIcon(false);
+
+    function nudgeResize(){
+      var s = computeSize();
+      try { pageFlip.update({ width: s.w, height: s.h }); } catch(e){}
+    }
+
+    function enterCssFs(){
+      cssFs = true;
+      inline.classList.add('texon-fb-is-fullscreen');
+      document.body.classList.add('texon-fb-fs-lock');
+      setFsIcon(true);
+      setTimeout(nudgeResize, 60);
+    }
+    function exitCssFs(){
+      cssFs = false;
+      inline.classList.remove('texon-fb-is-fullscreen');
+      document.body.classList.remove('texon-fb-fs-lock');
+      setFsIcon(false);
+      setTimeout(nudgeResize, 60);
+    }
+
     function toggleFullscreen(){
       var doc = document;
-      var inFs = doc.fullscreenElement || doc.webkitFullscreenElement;
-      if (!inFs){
-        var req = inline.requestFullscreen || inline.webkitRequestFullscreen;
-        if (req) req.call(inline);
-        else inline.classList.add('texon-fb-is-fullscreen');
-      } else {
+      var apiActive = !!(doc.fullscreenElement || doc.webkitFullscreenElement);
+      if (apiActive){
         var ex = doc.exitFullscreen || doc.webkitExitFullscreen;
         if (ex) ex.call(doc);
-        else inline.classList.remove('texon-fb-is-fullscreen');
+        return;
+      }
+      if (cssFs){ exitCssFs(); return; }
+      if (hasFsApi){
+        var req = inline.requestFullscreen || inline.webkitRequestFullscreen;
+        try {
+          var p = req.call(inline);
+          if (p && typeof p.then === 'function') p.catch(function(){ enterCssFs(); });
+        } catch(e){ enterCssFs(); }
+      } else {
+        enterCssFs();
       }
     }
     btnFs.addEventListener('click', toggleFullscreen);
+
+    // Sync icon + re-layout when the native Fullscreen API state changes
+    function onFsChange(){
+      var on = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      setFsIcon(on);
+      setTimeout(nudgeResize, 60);
+    }
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+
+    // Orientation change / viewport resize in CSS fullscreen
+    window.addEventListener('orientationchange', function(){ setTimeout(nudgeResize, 200); });
 
     function onKey(e){
       if (!viewer.offsetParent) return;
@@ -206,6 +258,7 @@
       else if (e.key === 'Home') { try { pageFlip.flip(0, 'top'); } catch(_){} }
       else if (e.key === 'End')  { try { pageFlip.flip(cfg.pageCount - 1, 'top'); } catch(_){} }
       else if (e.key && e.key.toLowerCase() === 'f') toggleFullscreen();
+      else if (e.key === 'Escape' && cssFs) exitCssFs();
     }
     document.addEventListener('keydown', onKey);
 

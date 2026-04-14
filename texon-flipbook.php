@@ -2,13 +2,13 @@
 /**
  * Plugin Name: Texon Flipbook
  * Description: Embed interactive page-turn catalogs (PDF flipbooks) with clickable hotspots. Use shortcode [texon_flipbook id="..."] for inline, or [texon_flipbook id="..." trigger="button" label="View Catalog"] for a modal.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: Texon Towel
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'TEXON_FLIPBOOK_VERSION', '1.1.0' );
+define( 'TEXON_FLIPBOOK_VERSION', '1.1.1' );
 define( 'TEXON_FLIPBOOK_DIR', plugin_dir_path( __FILE__ ) );
 define( 'TEXON_FLIPBOOK_URL', plugin_dir_url( __FILE__ ) );
 
