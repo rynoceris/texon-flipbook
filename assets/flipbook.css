@@ -21,10 +21,12 @@
 
 /* ===== Top bar: counter + zoom ===== */
 .texon-fb-topbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;color:#fff;font:600 12px/1 system-ui,sans-serif;background:rgba(0,0,0,.5);padding:6px 12px;border-radius:20px;z-index:6}
-.texon-fb-tools{position:absolute;top:10px;right:10px;display:flex;gap:4px;z-index:6}
-.texon-fb-tools button{background:rgba(0,0,0,.55);border:0;color:#fff;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0;transition:background .15s,transform .1s}
-.texon-fb-tools button:hover{background:rgba(0,0,0,.8);transform:scale(1.05)}
+.texon-fb-tools{position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:6}
+.texon-fb-tools button{background:rgba(0,0,0,.75);border:0;color:#fff;width:38px;height:38px;border-radius:50%;cursor:pointer;line-height:0;display:inline-flex;align-items:center;justify-content:center;padding:0;transition:background .15s,transform .1s;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.texon-fb-tools button:hover{background:#06f;transform:scale(1.05)}
 .texon-fb-tools button:active{transform:scale(0.95)}
+.texon-fb-tools button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.texon-fb-tools button svg{width:20px;height:20px;display:block;color:#fff}
 
 /* Toast */
 .texon-fb-toast{position:absolute;bottom:80px;left:50%;transform:translate(-50%,8px);background:rgba(0,0,0,.85);color:#fff;padding:8px 14px;border-radius:20px;font:13px/1 system-ui,sans-serif;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:50}
@@ -35,8 +37,9 @@
 .texon-fb-search.on{opacity:1;pointer-events:auto}
 .texon-fb-search-bar{display:flex;gap:8px;align-items:center;background:#fff;border-radius:30px;padding:6px 8px 6px 18px;box-shadow:0 8px 28px rgba(0,0,0,.35);max-width:560px;width:100%;margin:0 auto}
 .texon-fb-search-bar input{flex:1;border:0;outline:0;font:16px/1.2 system-ui,sans-serif;padding:8px 0;background:transparent;color:#111}
-.texon-fb-search-close{background:#eee !important;color:#111 !important;width:32px !important;height:32px !important;border-radius:50% !important;font-size:14px !important;border:0;cursor:pointer}
-.texon-fb-search-close:hover{background:#ddd !important}
+.texon-fb-search-close{background:#eee;color:#111;width:32px;height:32px;border-radius:50%;border:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;flex:0 0 auto}
+.texon-fb-search-close:hover{background:#ddd}
+.texon-fb-search-close svg{width:16px;height:16px;color:#111}
 .texon-fb-search-results{margin:14px auto 0;max-width:560px;width:100%;flex:1;overflow-y:auto;background:#fff;border-radius:8px;padding:6px}
 .texon-fb-search-result{display:block;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid #eee;padding:10px 12px;cursor:pointer;font:13px/1.4 system-ui,sans-serif;color:#222}
 .texon-fb-search-result:last-child{border-bottom:0}
@@ -60,8 +63,8 @@
 .texon-fb-inline:fullscreen,
 .texon-fb-inline:-webkit-full-screen{width:100vw !important;height:100vh !important;max-height:none !important;border-radius:0;background:#000}
 /* CSS-only fallback (iOS Safari/Chrome: Fullscreen API unavailable on non-video elements) */
-.texon-fb-inline.texon-fb-is-fullscreen{position:fixed !important;inset:0 !important;top:0 !important;left:0 !important;right:0 !important;bottom:0 !important;width:100vw !important;width:100dvw !important;height:100vh !important;height:100dvh !important;max-height:none !important;border-radius:0;background:#000;z-index:2147483647;margin:0 !important;padding:0 !important}
-body.texon-fb-fs-lock{overflow:hidden;position:fixed;width:100%;height:100%}
+.texon-fb-inline.texon-fb-is-fullscreen{position:fixed !important;inset:0 !important;top:0 !important;left:0 !important;right:0 !important;bottom:0 !important;width:100vw !important;width:100dvw !important;height:100vh !important;height:100dvh !important;max-height:none !important;border-radius:0;background:#000;z-index:2147483647 !important;margin:0 !important;padding:0 !important;transform:none !important;filter:none !important;contain:none !important;isolation:auto !important}
+html.texon-fb-fs-lock,body.texon-fb-fs-lock{overflow:hidden !important;touch-action:none}
 
 /* ===== Modal (trigger=button shortcode) ===== */
 .texon-fb-modal{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center}

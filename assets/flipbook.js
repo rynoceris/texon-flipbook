@@ -63,20 +63,31 @@
     var counter = el('span', null, '1 / ' + cfg.pageCount);
     topbar.appendChild(counter);
 
-    function makeIconBtn(icon, label){
+    // 24×24 icons (stroke-based, currentColor so CSS controls the color)
+    var ICONS = {
+      search:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+      share:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M8.1 10.9l7.8-3.8M8.1 13.1l7.8 3.8"/></svg>',
+      download:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/></svg>',
+      print:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="1.5"/><rect x="7" y="14" width="10" height="6" rx="1"/><circle cx="17" cy="12" r=".9" fill="currentColor" stroke="none"/></svg>',
+      fullscreen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+      exit:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>',
+      close:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+    };
+    function makeIconBtn(iconKey, label){
       var b = document.createElement('button');
       b.type = 'button';
-      b.innerText = icon;
+      b.innerHTML = ICONS[iconKey];
       b.title = label;
       b.setAttribute('aria-label', label);
+      b.setAttribute('data-icon', iconKey);
       return b;
     }
     var tools = el('div', 'texon-fb-tools');
-    var btnSearch = makeIconBtn('\u{1F50D}', 'Search');           // 🔍
-    var btnShare  = makeIconBtn('\u{1F517}', 'Share');            // 🔗
-    var btnDl     = makeIconBtn('\u{2B07}\u{FE0F}', 'Download PDF'); // ⬇️
-    var btnPrint  = makeIconBtn('\u{1F5A8}\u{FE0F}', 'Print');    // 🖨️
-    var btnFs     = makeIconBtn('\u26F6', 'Fullscreen');          // ⛶
+    var btnSearch = makeIconBtn('search', 'Search');
+    var btnShare  = makeIconBtn('share',  'Share');
+    var btnDl     = makeIconBtn('download', 'Download PDF');
+    var btnPrint  = makeIconBtn('print', 'Print');
+    var btnFs     = makeIconBtn('fullscreen', 'Fullscreen');
     if (cfg.textUrl)       tools.appendChild(btnSearch);
     tools.appendChild(btnShare);
     if (cfg.pdfUrl){ tools.appendChild(btnDl); tools.appendChild(btnPrint); }
@@ -204,10 +215,10 @@
       inline.requestFullscreen || inline.webkitRequestFullscreen
     );
     var cssFs = false;
-    var FS_ENTER = '\u26F6'; // ⛶ enter
-    var FS_EXIT  = '\u2715'; // ✕ exit
-
-    function setFsIcon(on){ btnFs.textContent = on ? FS_EXIT : FS_ENTER; btnFs.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Fullscreen'); }
+    function setFsIcon(on){
+      btnFs.innerHTML = on ? ICONS.exit : ICONS.fullscreen;
+      btnFs.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Fullscreen');
+    }
     setFsIcon(false);
 
     function nudgeResize(){
@@ -215,9 +226,31 @@
       try { pageFlip.update({ width: s.w, height: s.h }); } catch(e){}
     }
 
+    // Portal the inline element out of any ancestor stacking context
+    // (themes often wrap content in transform/filter/will-change parents,
+    // which traps position:fixed elements and z-index inside that context —
+    // symptom on iOS: other page chrome paints over the fullscreen view
+    // and/or touch events fall through to it).
+    var portalAnchor = null; // placeholder <div> we leave behind to restore position
+    function portalToBody(){
+      if (portalAnchor) return;
+      portalAnchor = document.createElement('div');
+      portalAnchor.style.display = 'none';
+      inline.parentNode.insertBefore(portalAnchor, inline);
+      document.body.appendChild(inline);
+    }
+    function restoreFromBody(){
+      if (!portalAnchor) return;
+      portalAnchor.parentNode.insertBefore(inline, portalAnchor);
+      portalAnchor.parentNode.removeChild(portalAnchor);
+      portalAnchor = null;
+    }
+
     function enterCssFs(){
       cssFs = true;
+      portalToBody();
       inline.classList.add('texon-fb-is-fullscreen');
+      document.documentElement.classList.add('texon-fb-fs-lock');
       document.body.classList.add('texon-fb-fs-lock');
       setFsIcon(true);
       setTimeout(nudgeResize, 60);
@@ -225,7 +258,9 @@
     function exitCssFs(){
       cssFs = false;
       inline.classList.remove('texon-fb-is-fullscreen');
+      document.documentElement.classList.remove('texon-fb-fs-lock');
       document.body.classList.remove('texon-fb-fs-lock');
+      restoreFromBody();
       setFsIcon(false);
       setTimeout(nudgeResize, 60);
     }
@@ -321,7 +356,7 @@
       inp.type = 'search';
       inp.placeholder = 'Search catalog…';
       inp.setAttribute('aria-label', 'Search catalog');
-      var close = makeIconBtn('\u2715', 'Close search');
+      var close = makeIconBtn('close', 'Close search');
       close.className = 'texon-fb-search-close';
       bar.appendChild(inp); bar.appendChild(close);
       var results = el('div', 'texon-fb-search-results');
