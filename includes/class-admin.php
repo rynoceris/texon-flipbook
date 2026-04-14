@@ -47,15 +47,33 @@ class Texon_Flipbook_Admin {
             <?php if ( ! empty( $_GET['deleted'] ) ): ?>
                 <div class="notice notice-success is-dismissible"><p>Flipbook deleted.</p></div>
             <?php endif; ?>
-            <table class="wp-list-table widefat fixed striped">
-                <thead><tr><th>Title</th><th>Pages</th><th>Shortcodes</th><th>Actions</th></tr></thead>
+            <table class="wp-list-table widefat fixed striped texon-flipbook-list">
+                <thead><tr><th class="texon-thumb-col">Cover</th><th>Title</th><th>Pages</th><th>Shortcodes</th><th>Actions</th></tr></thead>
                 <tbody>
                 <?php if ( ! $books ): ?>
-                    <tr><td colspan="4">No flipbooks yet. <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=new' ) ); ?>">Create one</a>.</td></tr>
+                    <tr><td colspan="5">No flipbooks yet. <a href="<?php echo esc_url( admin_url( 'admin.php?page=texon-flipbook&action=new' ) ); ?>">Create one</a>.</td></tr>
                 <?php endif; ?>
-                <?php foreach ( $books as $b ): $d = Texon_Flipbook_Post_Type::get_data( $b->ID ); ?>
+                <?php
+                $uploads = wp_upload_dir();
+                foreach ( $books as $b ):
+                    $d = Texon_Flipbook_Post_Type::get_data( $b->ID );
+                    $thumb_url = '';
+                    if ( $d['pages_dir'] && file_exists( $d['pages_dir'] . '/page-01.jpg' ) ) {
+                        $thumb_url = str_replace( $uploads['basedir'], $uploads['baseurl'], $d['pages_dir'] ) . '/page-01.jpg';
+                    }
+                    $edit_url = admin_url( 'admin.php?page=texon-flipbook&action=edit&id=' . $d['id'] );
+                    ?>
                     <tr>
-                        <td><strong><?php echo esc_html( $d['title'] ); ?></strong></td>
+                        <td class="texon-thumb-col">
+                            <a href="<?php echo esc_url( $edit_url ); ?>" class="texon-thumb">
+                                <?php if ( $thumb_url ): ?>
+                                    <img src="<?php echo esc_url( $thumb_url ); ?>" alt="Cover of <?php echo esc_attr( $d['title'] ); ?>" loading="lazy">
+                                <?php else: ?>
+                                    <span class="texon-thumb-placeholder" aria-label="No cover rendered">—</span>
+                                <?php endif; ?>
+                            </a>
+                        </td>
+                        <td><strong><a href="<?php echo esc_url( $edit_url ); ?>"><?php echo esc_html( $d['title'] ); ?></a></strong></td>
                         <td><?php echo (int) $d['page_count']; ?></td>
                         <td>
                             <?php if ( $d['page_count'] ): ?>
