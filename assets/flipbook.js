@@ -65,6 +65,8 @@
 
     // 24×24 icons (stroke-based, currentColor so CSS controls the color)
     var ICONS = {
+      zoomIn:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/><path d="M11 8v6M8 11h6"/></svg>',
+      zoomOut:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/><path d="M8 11h6"/></svg>',
       search:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
       share:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M8.1 10.9l7.8-3.8M8.1 13.1l7.8 3.8"/></svg>',
       download:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/></svg>',
@@ -83,6 +85,10 @@
       return b;
     }
     var tools = el('div', 'texon-fb-tools');
+    var btnZoomIn  = makeIconBtn('zoomIn',  'Zoom in');
+    var btnZoomOut = makeIconBtn('zoomOut', 'Zoom out');
+    tools.appendChild(btnZoomIn);
+    tools.appendChild(btnZoomOut);
     var btnSearch = makeIconBtn('search', 'Search');
     var btnShare  = makeIconBtn('share',  'Share');
     var btnDl     = makeIconBtn('download', 'Download PDF');
@@ -186,6 +192,7 @@
       btnSideNext.disabled = cur >= cfg.pageCount;
       activeThumb(cur);
       writeHash(cur);
+      if (typeof resetZoom === 'function' && zState && zState.scale > 1) resetZoom();
     }
     pageFlip.on('flip', update);
 
@@ -285,6 +292,132 @@
       }
     }
     btnFs.addEventListener('click', toggleFullscreen);
+
+    // === Zoom / pan ===
+    // Apply CSS transform to bookEl. StPageFlip's internal transforms on page
+    // blocks compose with this outer transform, so flipping still renders
+    // correctly when scale === 1. We disable flip gestures while zoomed by
+    // activating a transparent panner overlay that intercepts pointer events.
+    var MIN_ZOOM = 1, MAX_ZOOM = 4, ZOOM_STEP = 1.3;
+    var zState = { scale: 1, x: 0, y: 0 };
+    var panner = el('div', 'texon-fb-panner');
+    stage.appendChild(panner);
+
+    function clampPan(){
+      if (zState.scale <= 1){ zState.x = 0; zState.y = 0; return; }
+      // Allow panning roughly up to the overflow region in each direction.
+      var rect = bookEl.getBoundingClientRect();
+      var baseW = rect.width  / zState.scale;
+      var baseH = rect.height / zState.scale;
+      var maxX = Math.max(0, (baseW * zState.scale - baseW) / 2);
+      var maxY = Math.max(0, (baseH * zState.scale - baseH) / 2);
+      if (zState.x >  maxX) zState.x =  maxX;
+      if (zState.x < -maxX) zState.x = -maxX;
+      if (zState.y >  maxY) zState.y =  maxY;
+      if (zState.y < -maxY) zState.y = -maxY;
+    }
+    function applyZoom(){
+      clampPan();
+      bookEl.style.transformOrigin = '50% 50%';
+      bookEl.style.transform = 'translate(' + zState.x + 'px,' + zState.y + 'px) scale(' + zState.scale + ')';
+      bookEl.style.transition = 'transform .12s';
+      var active = zState.scale > 1.001;
+      panner.classList.toggle('on', active);
+      btnZoomOut.disabled = zState.scale <= MIN_ZOOM + 0.001;
+      btnZoomIn.disabled  = zState.scale >= MAX_ZOOM - 0.001;
+      setTimeout(function(){ bookEl.style.transition = ''; }, 140);
+    }
+    function zoomBy(factor, cx, cy){
+      var prev = zState.scale;
+      var next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev * factor));
+      if (next === prev) return;
+      // Keep the cursor/pinch focal point stable
+      if (cx != null && cy != null){
+        var rect = stage.getBoundingClientRect();
+        var sx = cx - rect.left - rect.width / 2;
+        var sy = cy - rect.top  - rect.height / 2;
+        var k = next / prev;
+        zState.x = sx - (sx - zState.x) * k;
+        zState.y = sy - (sy - zState.y) * k;
+      }
+      zState.scale = next;
+      applyZoom();
+    }
+    function resetZoom(){ zState.scale = 1; zState.x = 0; zState.y = 0; applyZoom(); }
+    btnZoomIn.addEventListener('click',  function(){ var r = stage.getBoundingClientRect(); zoomBy(ZOOM_STEP, r.left + r.width/2, r.top + r.height/2); });
+    btnZoomOut.addEventListener('click', function(){ var r = stage.getBoundingClientRect(); zoomBy(1/ZOOM_STEP, r.left + r.width/2, r.top + r.height/2); });
+
+    // Wheel zoom (desktop)
+    stage.addEventListener('wheel', function(e){
+      // Only zoom if the wheel originates over the book
+      if (!bookEl.contains(e.target) && e.target !== panner && e.target !== stage) return;
+      if (Math.abs(e.deltaY) < 1) return;
+      e.preventDefault();
+      var factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+      zoomBy(factor, e.clientX, e.clientY);
+    }, { passive: false });
+
+    // Pointer drag to pan (mouse + single-finger touch) when zoomed
+    var drag = null;
+    panner.addEventListener('pointerdown', function(e){
+      if (zState.scale <= 1 || e.isPrimary === false) return;
+      if (e.pointerType === 'touch' && pinch.active) return;
+      panner.setPointerCapture(e.pointerId);
+      drag = { id: e.pointerId, startX: e.clientX, startY: e.clientY, ox: zState.x, oy: zState.y };
+    });
+    panner.addEventListener('pointermove', function(e){
+      if (!drag || e.pointerId !== drag.id) return;
+      zState.x = drag.ox + (e.clientX - drag.startX);
+      zState.y = drag.oy + (e.clientY - drag.startY);
+      applyZoom();
+    });
+    function endDrag(e){
+      if (drag && e.pointerId === drag.id){
+        try { panner.releasePointerCapture(drag.id); } catch(_){}
+        drag = null;
+      }
+    }
+    panner.addEventListener('pointerup', endDrag);
+    panner.addEventListener('pointercancel', endDrag);
+
+    // Pinch-to-zoom (touch) — handled on the stage so it works at scale 1 too
+    var pinch = { active: false, start: 0, scale0: 1, cx: 0, cy: 0 };
+    stage.addEventListener('touchstart', function(e){
+      if (e.touches.length === 2){
+        var a = e.touches[0], b = e.touches[1];
+        pinch.active = true;
+        pinch.start = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+        pinch.scale0 = zState.scale;
+        pinch.cx = (a.clientX + b.clientX) / 2;
+        pinch.cy = (a.clientY + b.clientY) / 2;
+      }
+    }, { passive: true });
+    stage.addEventListener('touchmove', function(e){
+      if (!pinch.active || e.touches.length !== 2) return;
+      e.preventDefault();
+      var a = e.touches[0], b = e.touches[1];
+      var dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      var cx = (a.clientX + b.clientX) / 2;
+      var cy = (a.clientY + b.clientY) / 2;
+      var next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, pinch.scale0 * (dist / pinch.start)));
+      // Apply centred on the gesture midpoint
+      var rect = stage.getBoundingClientRect();
+      var sx = cx - rect.left - rect.width / 2;
+      var sy = cy - rect.top  - rect.height / 2;
+      var k = next / zState.scale;
+      zState.x = sx - (sx - zState.x) * k;
+      zState.y = sy - (sy - zState.y) * k;
+      zState.scale = next;
+      applyZoom();
+    }, { passive: false });
+    stage.addEventListener('touchend', function(e){
+      if (e.touches.length < 2) pinch.active = false;
+    });
+
+    // Double-click/tap to reset
+    bookEl.addEventListener('dblclick', function(e){ if (zState.scale > 1){ e.preventDefault(); resetZoom(); } });
+
+    applyZoom();
 
     // === Download ===
     btnDl.addEventListener('click', function(){

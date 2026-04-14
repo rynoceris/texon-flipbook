@@ -7,6 +7,10 @@
 .texon-fb-book{margin:0 auto;max-width:100%;max-height:100%}
 
 /* ===== Page & hotspots (front-end = invisible) ===== */
+.texon-fb-book{will-change:transform}
+.texon-fb-panner{position:absolute;inset:0;z-index:7;cursor:grab;pointer-events:none;touch-action:none;background:transparent}
+.texon-fb-panner.on{pointer-events:auto}
+.texon-fb-panner.on:active{cursor:grabbing}
 .texon-fb-page{position:relative;width:100%;height:100%;background:#fff;overflow:hidden}
 .texon-fb-page img{width:100%;height:100%;display:block;object-fit:contain;-webkit-user-drag:none;user-select:none}
 .texon-fb-hotspot{position:absolute;display:block;background:transparent;border:0;cursor:pointer}
