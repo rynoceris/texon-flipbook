@@ -60,7 +60,8 @@
 .texon-fb-search-close{background:#eee;color:#111;width:32px;height:32px;border-radius:50%;border:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;flex:0 0 auto}
 .texon-fb-search-close:hover{background:#ddd}
 .texon-fb-search-close svg{width:16px;height:16px;color:#111}
-.texon-fb-search-results{margin:14px auto 0;max-width:560px;width:100%;flex:1;overflow-y:auto;background:#fff;border-radius:8px;padding:6px}
+.texon-fb-search-results{margin:14px auto 0;max-width:560px;width:100%;flex:0 1 auto;max-height:calc(100% - 70px);overflow-y:auto;background:#fff;border-radius:8px;padding:6px}
+.texon-fb-search-results:empty{display:none}
 .texon-fb-search-result{display:block;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid #eee;padding:10px 12px;cursor:pointer;font:13px/1.4 system-ui,sans-serif;color:#222}
 .texon-fb-search-result:last-child{border-bottom:0}
 .texon-fb-search-result:hover,.texon-fb-search-result:focus{background:#f4f8ff;outline:0}
@@ -102,4 +103,6 @@ body.texon-fb-open{overflow:hidden}
   .texon-fb-side{width:36px;height:56px;font-size:22px}
   .texon-fb-thumb{width:36px;height:48px}
   .texon-fb-viewer{padding:10px;gap:6px}
+  /* Counter moves to the bottom of the stage so the toolbar can't hide it */
+  .texon-fb-topbar{top:auto;bottom:6px;left:50%;transform:translateX(-50%);font-size:11px;padding:4px 10px}
 }
